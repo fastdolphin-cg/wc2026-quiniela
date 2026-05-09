@@ -1226,102 +1226,40 @@ function renderGroups() {
 
 function renderVenues() {
   const VENUES = [
-    { name: 'AT&T Stadium',           city: 'Dallas',        country: 'USA',    capacity: '94,000', x: 430, y: 355, lx: -95, ly: -18 },
-    { name: 'SoFi Stadium',           city: 'Los Angeles',   country: 'USA',    capacity: '70,000', x: 148, y: 330, lx: -140, ly: -16 },
-    { name: 'MetLife Stadium',        city: 'New York / NJ', country: 'USA',    capacity: '82,500', x: 668, y: 228, lx:  10, ly: -16 },
-    { name: "Levi's Stadium",         city: 'San Francisco', country: 'USA',    capacity: '71,000', x: 118, y: 278, lx: -148, ly: -16 },
-    { name: 'Arrowhead Stadium',      city: 'Kansas City',   country: 'USA',    capacity: '73,000', x: 468, y: 278, lx:  10, ly: -16 },
-    { name: 'Mercedes-Benz Stadium',  city: 'Atlanta',       country: 'USA',    capacity: '75,000', x: 588, y: 340, lx:  10, ly: -16 },
-    { name: 'Lincoln Financial Field',city: 'Philadelphia',  country: 'USA',    capacity: '69,000', x: 648, y: 248, lx:  10, ly:  10 },
-    { name: 'Gillette Stadium',       city: 'Boston',        country: 'USA',    capacity: '65,000', x: 688, y: 208, lx:  10, ly: -16 },
-    { name: 'NRG Stadium',            city: 'Houston',       country: 'USA',    capacity: '72,000', x: 448, y: 388, lx: -130, ly: -16 },
-    { name: 'Hard Rock Stadium',      city: 'Miami',         country: 'USA',    capacity: '65,000', x: 618, y: 408, lx:  10, ly: -16 },
-    { name: 'Lumen Field',            city: 'Seattle',       country: 'USA',    capacity: '69,000', x: 148, y: 168, lx:  10, ly: -16 },
-    { name: 'Estadio Azteca',         city: 'Mexico City',   country: 'Mexico', capacity: '83,000', x: 358, y: 468, lx:  10, ly: -16 },
-    { name: 'Estadio BBVA',           city: 'Monterrey',     country: 'Mexico', capacity: '53,500', x: 388, y: 418, lx:  10, ly: -16 },
-    { name: 'Estadio Akron',          city: 'Guadalajara',   country: 'Mexico', capacity: '48,000', x: 308, y: 458, lx: -140, ly: -16 },
-    { name: 'BC Place',               city: 'Vancouver',     country: 'Canada', capacity: '54,000', x: 148, y: 148, lx: -110, ly: -16 },
-    { name: 'BMO Field',              city: 'Toronto',       country: 'Canada', capacity: '45,000', x: 588, y: 198, lx:  10, ly: -16 },
+    { name: 'AT&T Stadium', city: 'Dallas', country: 'USA', capacity: '94,000' },
+    { name: 'SoFi Stadium', city: 'Los Angeles', country: 'USA', capacity: '70,000' },
+    { name: 'MetLife Stadium', city: 'New York / NJ', country: 'USA', capacity: '82,500' },
+    { name: "Levi's Stadium", city: 'San Francisco', country: 'USA', capacity: '71,000' },
+    { name: 'Arrowhead Stadium', city: 'Kansas City', country: 'USA', capacity: '73,000' },
+    { name: 'Mercedes-Benz Stadium', city: 'Atlanta', country: 'USA', capacity: '75,000' },
+    { name: 'Lincoln Financial Field', city: 'Philadelphia', country: 'USA', capacity: '69,000' },
+    { name: 'Gillette Stadium', city: 'Boston', country: 'USA', capacity: '65,000' },
+    { name: 'NRG Stadium', city: 'Houston', country: 'USA', capacity: '72,000' },
+    { name: 'Hard Rock Stadium', city: 'Miami', country: 'USA', capacity: '65,000' },
+    { name: 'Lumen Field', city: 'Seattle', country: 'USA', capacity: '69,000' },
+    { name: 'Estadio Azteca', city: 'Mexico City', country: 'Mexico', capacity: '83,000' },
+    { name: 'Estadio BBVA', city: 'Monterrey', country: 'Mexico', capacity: '53,500' },
+    { name: 'Estadio Akron', city: 'Guadalajara', country: 'Mexico', capacity: '48,000' },
+    { name: 'BC Place', city: 'Vancouver', country: 'Canada', capacity: '54,000' },
+    { name: 'BMO Field', city: 'Toronto', country: 'Canada', capacity: '45,000' }
   ];
 
-  const CC = { USA: '#60a5fa', Mexico: '#4ade80', Canada: '#f87171' };
-  const CF = { USA: '🇺🇸', Mexico: '🇲🇽', Canada: '🇨🇦' };
+  const countryBadge = {
+    'USA': '<span class="venue-country-badge usa">🇺🇸 USA</span>',
+    'Mexico': '<span class="venue-country-badge mexico">🇲🇽 Mexico</span>',
+    'Canada': '<span class="venue-country-badge canada">🇨🇦 Canada</span>'
+  };
 
-  document.getElementById('venuesGrid').innerHTML = `
-  <div style="background:var(--navy2);border:1px solid var(--border);border-radius:20px;overflow:hidden;padding:24px;">
-    <!-- Legend -->
-    <div style="display:flex;gap:24px;margin-bottom:20px;flex-wrap:wrap;">
-      <span style="display:flex;align-items:center;gap:8px;font-size:0.9rem;font-weight:600;"><span style="width:14px;height:14px;border-radius:50%;background:#60a5fa;display:inline-block;box-shadow:0 0 8px #60a5fa88;"></span>🇺🇸 USA — 11 stadiums</span>
-      <span style="display:flex;align-items:center;gap:8px;font-size:0.9rem;font-weight:600;"><span style="width:14px;height:14px;border-radius:50%;background:#4ade80;display:inline-block;box-shadow:0 0 8px #4ade8088;"></span>🇲🇽 Mexico — 3 stadiums</span>
-      <span style="display:flex;align-items:center;gap:8px;font-size:0.9rem;font-weight:600;"><span style="width:14px;height:14px;border-radius:50%;background:#f87171;display:inline-block;box-shadow:0 0 8px #f8717188;"></span>🇨🇦 Canada — 2 stadiums</span>
-    </div>
-    <!-- Full width map -->
-    <div style="position:relative;width:100%;border-radius:12px;overflow:hidden;background:#071428;">
-      <svg viewBox="0 0 820 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
-        <defs>
-          <radialGradient id="bg2" cx="40%" cy="40%" r="70%">
-            <stop offset="0%" style="stop-color:#0d2040"/>
-            <stop offset="100%" style="stop-color:#050c1f"/>
-          </radialGradient>
-          <filter id="glow2">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
-        <rect width="820" height="540" fill="url(#bg2)"/>
-
-        <!-- CANADA - simplified but recognizable shape -->
-        <path d="M80,20 L760,20 L780,40 L770,70 L750,80 L730,75 L720,90 L700,85 L685,95 L670,88 L650,98 L630,92 L610,100 L590,95 L570,105 L550,98 L530,108 L510,100 L490,110 L470,102 L450,112 L430,105 L410,115 L390,108 L370,118 L350,110 L330,120 L310,112 L290,122 L270,115 L250,125 L230,118 L210,128 L190,122 L170,132 L150,126 L130,136 L110,130 L90,140 L75,135 L65,120 L60,95 L62,65 L68,40 Z" 
-              fill="#0e2545" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
-
-        <!-- UNITED STATES - recognizable outline -->
-        <path d="M90,140 L110,130 L130,136 L150,126 L170,132 L190,122 L210,128 L230,118 L250,125 L270,115 L290,122 L310,112 L330,120 L350,110 L370,118 L390,108 L410,115 L430,105 L450,112 L470,102 L490,110 L510,100 L530,108 L550,98 L570,105 L590,95 L610,100 L630,92 L650,98 L670,88 L685,95 L700,85 L720,90 L730,75 L750,80 L760,110 L755,140 L745,165 L740,190 L730,210 L720,230 L715,255 L708,275 L700,295 L690,315 L680,335 L672,358 L665,378 L655,395 L640,408 L620,415 L600,418 L580,415 L560,412 L540,408 L515,412 L495,408 L475,415 L455,408 L435,412 L415,405 L395,398 L375,390 L355,380 L335,375 L315,368 L295,360 L275,352 L255,345 L235,335 L218,322 L205,308 L195,292 L185,275 L175,258 L165,240 L155,222 L145,205 L135,188 L122,172 L108,158 L95,148 Z" 
-              fill="#0e2545" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
-
-        <!-- MEXICO -->
-        <path d="M295,360 L315,368 L335,375 L355,380 L375,390 L395,398 L415,405 L435,412 L440,425 L435,445 L425,462 L415,472 L400,478 L382,475 L365,480 L348,478 L330,472 L315,462 L300,450 L288,438 L278,425 L272,410 L275,395 L282,378 Z" 
-              fill="#0e2545" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
-
-        <!-- Country labels -->
-        <text x="420" y="62" text-anchor="middle" fill="rgba(255,255,255,0.18)" font-size="22" font-family="Bebas Neue,sans-serif" letter-spacing="6">CANADA</text>
-        <text x="430" y="270" text-anchor="middle" fill="rgba(255,255,255,0.18)" font-size="22" font-family="Bebas Neue,sans-serif" letter-spacing="6">UNITED STATES</text>
-        <text x="360" y="435" text-anchor="middle" fill="rgba(255,255,255,0.18)" font-size="16" font-family="Bebas Neue,sans-serif" letter-spacing="4">MEXICO</text>
-
-        <!-- Timezone labels at bottom -->
-        <text x="110" y="530" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="Barlow,sans-serif">UTC-8 PACIFIC</text>
-        <text x="270" y="530" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="Barlow,sans-serif">UTC-7 MOUNTAIN</text>
-        <text x="450" y="530" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="Barlow,sans-serif">UTC-6 CENTRAL</text>
-        <text x="650" y="530" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="Barlow,sans-serif">UTC-5 EASTERN</text>
-
-        ${VENUES.map((v,i) => {
-          const c = CC[v.country];
-          const lx = v.x + v.lx;
-          const ly = v.y + v.ly;
-          return `<g style="cursor:pointer;" onmouseenter="showVT(event,${i})" onmouseleave="hideVT()">
-            <!-- Pulse ring -->
-            <circle cx="${v.x}" cy="${v.y}" r="12" fill="${c}" opacity="0.15">
-              <animate attributeName="r" values="6;16;6" dur="3s" repeatCount="indefinite" begin="${i*0.25}s"/>
-              <animate attributeName="opacity" values="0.3;0;0.3" dur="3s" repeatCount="indefinite" begin="${i*0.25}s"/>
-            </circle>
-            <!-- Pin dot -->
-            <circle cx="${v.x}" cy="${v.y}" r="6" fill="${c}" opacity="0.95" filter="url(#glow2)"/>
-            <circle cx="${v.x}" cy="${v.y}" r="2.5" fill="white" opacity="0.9"/>
-            <!-- Label box -->
-            <rect x="${lx}" y="${ly - 4}" width="${v.lx < 0 ? 130 : 128}" height="22" rx="3" fill="rgba(5,12,31,0.82)" stroke="${c}" stroke-width="0.8" opacity="0.95"/>
-            <text x="${lx + (v.lx < 0 ? 130 : 128)/2}" y="${ly + 10}" text-anchor="middle" fill="white" font-size="8.5" font-family="Barlow,sans-serif" font-weight="600">${v.city} · ${v.name}</text>
-          </g>`;
-        }).join('')}
-      </svg>
-    </div>
-  </div>`;
-
-  window._venues = VENUES;
-  window._CC = CC;
-  window._CF = CF;
+  document.getElementById('venuesGrid').innerHTML = VENUES.map(v => `
+    <div class="venue-card">
+      ${countryBadge[v.country]}
+      <div class="venue-icon">🏟️</div>
+      <div class="venue-name">${v.name}</div>
+      <div class="venue-city">📍 ${v.city}</div>
+      <div class="venue-capacity">👥 Capacity: ${v.capacity}</div>
+    </div>`).join('');
 }
 
-window.showVT = function(e, idx) {};
-window.hideVT = function() {};
 
 // ===================== LIVE SCORES =====================
 async function fetchLiveScores() {
