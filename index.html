@@ -1343,33 +1343,24 @@ async function startApp() {
 
 // ===================== INIT =====================
 window.addEventListener('load', () => {
-  // Check for returning user
-  const saved = localStorage.getItem('wc_user');
-  if (saved) {
-    try {
-      currentUser = JSON.parse(saved);
-      // Small delay to let Google SDK load
-      setTimeout(() => startApp(), 500);
-    } catch(e) {
-      localStorage.removeItem('wc_user');
-      showLoginScreen();
-    }
-  } else {
-    showLoginScreen();
-  }
+  // Always show login first, never auto-restore session
+  // (avoids getting stuck on loading screen)
+  localStorage.removeItem('wc_user');
+  showLoginScreen();
 });
 
 function showLoginScreen() {
   document.getElementById('loadingOverlay').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   // Init Google auth after DOM is ready
-  setTimeout(() => {
-    if (typeof google !== 'undefined') initGoogleAuth();
-    else {
-      const script = document.querySelector('script[src*="accounts.google.com"]');
-      script.addEventListener('load', initGoogleAuth);
+  const tryInit = () => {
+    if (typeof google !== 'undefined' && google.accounts) {
+      initGoogleAuth();
+    } else {
+      setTimeout(tryInit, 300);
     }
-  }, 500);
+  };
+  setTimeout(tryInit, 500);
 }
 </script>
 </body>
