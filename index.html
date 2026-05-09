@@ -724,19 +724,44 @@ function signOut() {
 // using the Sheets API with the user's access token from OAuth2.
 
 async function getSheetsToken() {
-  // We'll use the tokenClient approach for Sheets API
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.GOOGLE_CLIENT_ID,
       scope: 'https://www.googleapis.com/auth/spreadsheets',
-      callback: (resp) => { sheetsToken = resp.access_token; resolve(resp.access_token); }
+      callback: (resp) => {
+        if (resp.error) { reject(new Error(resp.error)); return; }
+        sheetsToken = resp.access_token;
+        resolve(resp.access_token);
+      },
+      error_callback: (err) => reject(new Error(err.type))
     });
     client.requestAccessToken({ prompt: '' });
   });
 }
 
 async function ensureSheetsToken() {
-  if (!sheetsToken) sheetsToken = await getSheetsToken();
+  if (sheetsToken) return sheetsToken;
+  try {
+    sheetsToken = await Promise.race([
+      getSheetsToken(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('token timeout')), 5000))
+    ]);
+  } catch(e) {
+    console.warn('Token request failed:', e.message);
+    // Try with prompt
+    sheetsToken = await new Promise((resolve, reject) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: (resp) => {
+          if (resp.error) { reject(new Error(resp.error)); return; }
+          sheetsToken = resp.access_token;
+          resolve(resp.access_token);
+        }
+      });
+      client.requestAccessToken({ prompt: 'consent' });
+    });
+  }
   return sheetsToken;
 }
 
@@ -1326,7 +1351,12 @@ async function startApp() {
   document.getElementById('userAvatar').textContent = currentUser.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('userName').textContent = currentUser.name;
 
+  // Hard timeout — show app after 8 seconds no matter what
+  const hardTimeout = setTimeout(() => showApp(), 8000);
+
   try {
+    // Request Sheets token first
+    await ensureSheetsToken();
     await loadMatches();
     await loadUserPicks();
     await loadLeaderboard();
@@ -1335,6 +1365,11 @@ async function startApp() {
     console.error('Error loading data:', e);
   }
 
+  clearTimeout(hardTimeout);
+  showApp();
+}
+
+function showApp() {
   document.getElementById('loadingOverlay').style.display = 'none';
   document.getElementById('appHeader').style.display = 'block';
   document.getElementById('appMain').style.display = 'block';
