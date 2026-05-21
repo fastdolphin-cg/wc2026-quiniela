@@ -411,14 +411,104 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
 .toast.success { border-color: rgba(0,200,83,0.4); color: var(--green); }
 .toast.error { border-color: rgba(244,67,54,0.4); color: #f87171; }
 
+/* ===== HAMBURGER MENU ===== */
+.hamburger {
+  display: none; background: none; border: 1px solid var(--border);
+  color: var(--text); padding: 8px 12px; border-radius: 8px;
+  cursor: pointer; font-size: 1.2rem; flex-shrink: 0;
+}
+.mobile-menu {
+  display: none; position: fixed; top: 64px; left: 0; right: 0; z-index: 99;
+  background: rgba(5,12,31,0.98); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  flex-direction: column; padding: 8px;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu .nav-btn {
+  width: 100%; text-align: left; padding: 14px 16px;
+  border-radius: 8px; font-size: 1rem;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
-  .header-inner { gap: 10px; }
-  .logo-text { font-size: 1.1rem; }
-  .lb-row { grid-template-columns: 40px 1fr 60px; }
-  .lb-row .lb-stat:nth-child(4), .lb-row .lb-stat:nth-child(5) { display: none; }
-  .hero { padding: 28px 20px; }
-  main { padding: 12px; }
+  /* Header */
+  .header-inner { gap: 8px; height: 56px; padding: 0 12px; }
+  .logo-text { font-size: 1rem; }
+  .logo-sub { display: none; }
+  nav#mainNav { display: none; }
+  .hamburger { display: block; }
+  .user-name { display: none; }
+  .sign-out-btn { padding: 6px 8px; font-size: 0.75rem; }
+  .user-chip { padding: 5px 8px 5px 5px; }
+
+  /* Main content */
+  main { padding: 10px; }
+
+  /* Hero - stack vertically on mobile */
+  .hero { padding: 24px 16px !important; }
+  .hero > div[style*="display:flex"] { flex-direction: column !important; gap: 12px !important; }
+  .hero > div[style*="display:flex"] > div[style*="width:2px"] { width: 80px !important; height: 2px !important; }
+
+  /* Countdown - keep all 4 in one row */
+  .countdown { gap: 8px !important; }
+  .countdown-item { min-width: 60px; padding: 10px 12px; }
+  .countdown-num { font-size: 1.8rem; }
+
+  /* Stats row */
+  .stats-row { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat-num { font-size: 1.8rem; }
+  .stat-label { font-size: 0.7rem; }
+
+  /* Match cards */
+  .cards-grid { grid-template-columns: 1fr; gap: 12px; }
+  .team-flag { width: 36px; height: 36px; }
+  .score-display { font-size: 2rem; padding: 4px 12px; }
+
+  /* Score inputs */
+  .score-input { width: 52px; height: 44px; font-size: 1.5rem; }
+  .save-pick-btn { padding: 10px 14px; font-size: 0.8rem; }
+
+  /* Leaderboard */
+  .lb-row { grid-template-columns: 36px 1fr 55px; gap: 6px; padding: 10px 12px; }
+  .lb-row > div:nth-child(4),
+  .lb-row > div:nth-child(5),
+  .lb-row > div:nth-child(6) { display: none; }
+  .lb-pts { font-size: 1.3rem; }
+  .lb-name { font-size: 0.85rem; }
+  .lb-email { font-size: 0.68rem; }
+
+  /* Groups */
+  .groups-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .group-team-name { font-size: 0.8rem; }
+
+  /* Venues */
+  .venues-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .venue-name { font-size: 0.95rem; }
+
+  /* Time chips - wrap nicely */
+  .match-times { gap: 4px; }
+  .time-chip { font-size: 0.65rem; padding: 2px 6px; }
+
+  /* Round filter */
+  .round-filter { gap: 6px; }
+  .round-btn { font-size: 0.75rem; padding: 5px 10px; }
+
+  /* Rules */
+  .rules-hero { padding: 24px 16px; }
+  .rules-hero-title { font-size: 1.4rem !important; }
+  .rules-grid { grid-template-columns: 1fr; }
+  .pt-row { padding: 12px 16px; }
+
+  /* Live header */
+  .live-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+}
+
+@media (max-width: 480px) {
+  .groups-grid { grid-template-columns: 1fr 1fr; }
+  .venues-grid { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .countdown-item { min-width: 52px; padding: 8px 10px; }
+  .countdown-num { font-size: 1.6rem; }
 }
 </style>
 </head>
@@ -473,9 +563,22 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
         <span class="user-name" id="userName">...</span>
       </div>
       <button class="sign-out-btn" onclick="signOut()">Sign Out</button>
+      <button class="hamburger" onclick="toggleMobileMenu()" id="hamburgerBtn">☰</button>
     </div>
   </div>
 </header>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <button class="nav-btn active" onclick="showPage('home',this);closeMobileMenu()">🏠 Home</button>
+  <button class="nav-btn" onclick="showPage('picks',this);closeMobileMenu()">📝 My Picks</button>
+  <button class="nav-btn" onclick="showPage('leaderboard',this);closeMobileMenu()">🏆 Leaderboard</button>
+  <button class="nav-btn" onclick="showPage('live',this);closeMobileMenu()">🔴 Live Scores</button>
+  <button class="nav-btn" onclick="showPage('schedule',this);closeMobileMenu()">📅 Schedule</button>
+  <button class="nav-btn" onclick="showPage('groups',this);closeMobileMenu()">👥 Groups</button>
+  <button class="nav-btn" onclick="showPage('venues',this);closeMobileMenu()">🏟️ Venues</button>
+  <button class="nav-btn" onclick="showPage('rules',this);closeMobileMenu()">📖 Rules</button>
+</div>
 
 <!-- MAIN APP -->
 <main id="appMain" style="display:none;">
@@ -722,6 +825,7 @@ function handleCredentialResponse(response) {
   document.querySelector('.loading-text').textContent = 'Authorizing Google Sheets...';
   // Request Sheets token right after user interaction (required for popup to work)
   setTimeout(() => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const client = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.GOOGLE_CLIENT_ID,
       scope: 'https://www.googleapis.com/auth/spreadsheets',
@@ -737,7 +841,8 @@ function handleCredentialResponse(response) {
         startApp();
       }
     });
-    client.requestAccessToken({ prompt: '' });
+    // On mobile, use 'consent' prompt to ensure popup shows
+    client.requestAccessToken({ prompt: isMobile ? 'consent' : '' });
   }, 100);
 }
 
@@ -1413,12 +1518,29 @@ async function recalculateLeaderboard() {
   } catch(e) { console.error('Leaderboard recalc error:', e); }
 }
 
+// ===================== MOBILE MENU =====================
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('hamburgerBtn');
+  menu.classList.toggle('open');
+  btn.textContent = menu.classList.contains('open') ? '✕' : '☰';
+}
+
+function closeMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('hamburgerBtn');
+  menu.classList.remove('open');
+  btn.textContent = '☰';
+}
+
 // ===================== NAVIGATION =====================
 function showPage(page, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
+  // Scroll to top on mobile
+  window.scrollTo(0, 0);
 
   if (page === 'home') renderHome();
   else if (page === 'picks') renderPicks();
