@@ -780,7 +780,8 @@ const CONFIG = {
   API_FOOTBALL_KEY: 'e20e51e2112f42ffc3a1578c9ab19360',
   ALLOWED_DOMAIN: 'fastdolphin.com',
   ADMIN_EMAILS: ['carlos.guerrero@fastdolphin.com', 'ramon.osuna@fastdolphin.com'],
-  POINTS: { exact: 3, diff: 2, winner: 1, wrong: 0 }
+  POINTS: { exact: 3, diff: 2, winner: 1, wrong: 0 },
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz9is-oK9AqYybeqzhWxczMJ-YkV5OJ8811h0GDkwqJt3YjwckkTRz80trOjBZEdgSREQ/exec'
 };
 
 // ===================== STATE =====================
@@ -819,31 +820,10 @@ function handleCredentialResponse(response) {
     isAdmin: CONFIG.ADMIN_EMAILS.includes(email)
   };
   localStorage.setItem('wc_user', JSON.stringify(currentUser));
-  // Show loading screen immediately
+  // Go straight to app - no OAuth token needed, Apps Script handles all data
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('loadingOverlay').style.display = 'flex';
-  document.querySelector('.loading-text').textContent = 'Authorizing Google Sheets...';
-  // Request Sheets token right after user interaction (required for popup to work)
-  setTimeout(() => {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
-      callback: (resp) => {
-        if (resp && resp.access_token) {
-          sheetsToken = resp.access_token;
-        }
-        document.querySelector('.loading-text').textContent = 'Loading Quiniela...';
-        startApp();
-      },
-      error_callback: () => {
-        document.querySelector('.loading-text').textContent = 'Loading Quiniela...';
-        startApp();
-      }
-    });
-    // On mobile, use 'consent' prompt to ensure popup shows
-    client.requestAccessToken({ prompt: isMobile ? 'consent' : '' });
-  }, 100);
+  startApp();
 }
 
 function parseJwt(token) {
@@ -864,125 +844,66 @@ function signOut() {
   document.getElementById('loginScreen').style.display = 'flex';
 }
 
-// ===================== SHEETS ACCESS TOKEN =====================
-// For reading public data we use API key approach, for writes we use the service account
-// Since we can't expose service account private key in frontend, picks are stored via a
-// Google Apps Script Web App (deploy as webapp) — or we use the user's own OAuth token
-// for their own picks row. Here we use Google Identity for user auth and store picks
-// using the Sheets API with the user's access token from OAuth2.
+// ===================== APPS SCRIPT API =====================
+// All data operations go through Google Apps Script Web App
+// No OAuth token needed - works on all devices including mobile Safari
 
-async function getSheetsToken() {
-  return new Promise((resolve, reject) => {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
-      callback: (resp) => {
-        if (resp.error) { reject(new Error(resp.error)); return; }
-        sheetsToken = resp.access_token;
-        resolve(resp.access_token);
-      },
-      error_callback: (err) => reject(new Error(err.type))
+async function gasRequest(action, data = {}) {
+  const url = CONFIG.APPS_SCRIPT_URL;
+  
+  if (action === 'getMatches' || action === 'getLeaderboard') {
+    // GET request for read operations
+    const resp = await fetch(`${url}?action=${action}&email=${encodeURIComponent(currentUser.email)}`, {
+      method: 'GET',
+      redirect: 'follow'
     });
-    client.requestAccessToken({ prompt: '' });
-  });
-}
-
-async function ensureSheetsToken() {
-  if (sheetsToken) return sheetsToken;
-  try {
-    sheetsToken = await Promise.race([
-      getSheetsToken(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('token timeout')), 5000))
-    ]);
-  } catch(e) {
-    console.warn('Token request failed:', e.message);
-    // Try with prompt
-    sheetsToken = await new Promise((resolve, reject) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/spreadsheets',
-        callback: (resp) => {
-          if (resp.error) { reject(new Error(resp.error)); return; }
-          sheetsToken = resp.access_token;
-          resolve(resp.access_token);
-        }
-      });
-      client.requestAccessToken({ prompt: 'consent' });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error);
+    return result.data;
+  } else {
+    // POST request for write operations
+    const resp = await fetch(url, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action, email: currentUser.email, ...data })
     });
+    const result = await resp.json();
+    if (!result.success) throw new Error(result.error);
+    return result.data;
   }
-  return sheetsToken;
-}
-
-// ===================== SHEETS API =====================
-async function sheetsGet(range) {
-  const token = await ensureSheetsToken();
-  const resp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${encodeURIComponent(range)}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.values || [];
-}
-
-async function sheetsAppend(range, values) {
-  const token = await ensureSheetsToken();
-  const resp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values })
-  });
-  return resp.json();
-}
-
-async function sheetsUpdate(range, values) {
-  const token = await ensureSheetsToken();
-  const resp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, {
-    method: 'PUT',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values })
-  });
-  return resp.json();
-}
-
-async function sheetsBatchUpdate(data) {
-  const token = await ensureSheetsToken();
-  const resp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values:batchUpdate`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ valueInputOption: 'RAW', data })
-  });
-  return resp.json();
 }
 
 // ===================== LOAD DATA =====================
 async function loadMatches() {
   try {
-    const rows = await sheetsGet('Matches!A2:S1000');
-    allMatches = rows.filter(r => r[0]).map(r => ({
-      id: r[0], round: r[1], group: r[2],
-      homeTeam: r[3], awayTeam: r[4],
-      homeTeamId: r[5], awayTeamId: r[6],
-      homeLogo: r[7], awayLogo: r[8],
-      date: r[9], dateTime: r[10],
-      venue: r[11], city: r[12], country: r[13],
-      homeScore: r[14] !== '' ? parseInt(r[14]) : null,
-      awayScore: r[15] !== '' ? parseInt(r[15]) : null,
-      status: r[16] || 'Not Started',
-      winner: r[17], apiId: r[18]
+    const data = await gasRequest('getMatches');
+    allMatches = data.map(r => ({
+      id: r.MatchID, round: r.Round, group: r.Group,
+      homeTeam: r.HomeTeam, awayTeam: r.AwayTeam,
+      homeTeamId: r.HomeTeamID, awayTeamId: r.AwayTeamID,
+      homeLogo: r.HomeLogo, awayLogo: r.AwayLogo,
+      date: r.MatchDate, dateTime: r.MatchTime_UTC,
+      venue: r.Venue, city: r.City, country: r.Country,
+      homeScore: r.HomeScore !== '' && r.HomeScore !== null ? parseInt(r.HomeScore) : null,
+      awayScore: r.AwayScore !== '' && r.AwayScore !== null ? parseInt(r.AwayScore) : null,
+      status: r.Status || 'Not Started',
+      winner: r.Winner, apiId: r.APIFixtureID
     }));
   } catch(e) { console.error('Error loading matches:', e); }
 }
 
 async function loadUserPicks() {
   try {
-    const rows = await sheetsGet('Picks!A2:H10000');
+    const data = await gasRequest('getPicks');
     userPicks = {};
-    rows.filter(r => r[1] === currentUser.email).forEach(r => {
-      userPicks[r[2]] = {
-        pickId: r[0], email: r[1], matchId: r[2],
-        homeScore: parseInt(r[3]), awayScore: parseInt(r[4]),
-        submittedAt: r[5], points: r[6] !== '' ? parseInt(r[6]) : null,
-        locked: r[7] === 'TRUE'
+    data.forEach(r => {
+      userPicks[r.MatchID] = {
+        pickId: r.PickID, email: r.UserEmail, matchId: r.MatchID,
+        homeScore: parseInt(r.HomeScorePick), awayScore: parseInt(r.AwayScorePick),
+        submittedAt: r.SubmittedAt,
+        points: r.Points !== '' && r.Points !== null ? parseInt(r.Points) : null,
+        locked: r.Locked === 'TRUE'
       };
     });
   } catch(e) { console.error('Error loading picks:', e); }
@@ -990,26 +911,19 @@ async function loadUserPicks() {
 
 async function loadLeaderboard() {
   try {
-    const rows = await sheetsGet('Leaderboard!A2:I1000');
-    leaderboardData = rows.filter(r => r[0]).map(r => ({
-      rank: parseInt(r[0]), email: r[1], name: r[2],
-      points: parseInt(r[3]) || 0, exact: parseInt(r[4]) || 0,
-      diff: parseInt(r[5]) || 0, winner: parseInt(r[6]) || 0,
-      wrong: parseInt(r[7]) || 0
+    const data = await gasRequest('getLeaderboard');
+    leaderboardData = data.map(r => ({
+      rank: parseInt(r.Rank) || 0, email: r.Email, name: r.DisplayName,
+      points: parseInt(r.TotalPoints) || 0, exact: parseInt(r.ExactScores) || 0,
+      diff: parseInt(r.CorrectDiff) || 0, winner: parseInt(r.CorrectWinner) || 0,
+      wrong: parseInt(r.WrongPicks) || 0
     }));
   } catch(e) { console.error('Error loading leaderboard:', e); }
 }
 
 async function registerUser() {
   try {
-    const rows = await sheetsGet('Users!A2:F1000');
-    const exists = rows.some(r => r[0] === currentUser.email);
-    if (!exists) {
-      await sheetsAppend('Users!A:F', [[
-        currentUser.email, currentUser.name,
-        new Date().toISOString(), 0, '', currentUser.isAdmin ? 'TRUE' : 'FALSE'
-      ]]);
-    }
+    await gasRequest('registerUser', { name: currentUser.name });
   } catch(e) { console.error('Error registering user:', e); }
 }
 
@@ -1152,17 +1066,7 @@ async function savePick(matchId) {
     const btn = document.querySelector(`[onclick="savePick('${matchId}')"]`);
     if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
 
-    // Check if pick exists, update or append
-    const rows = await sheetsGet('Picks!A2:H10000');
-    const rowIndex = rows.findIndex(r => r[1] === currentUser.email && r[2] === matchId);
-
-    if (rowIndex >= 0) {
-      const sheetRow = rowIndex + 2;
-      await sheetsUpdate(`Picks!D${sheetRow}:F${sheetRow}`, [[h, a, new Date().toISOString()]]);
-    } else {
-      const pickId = `P-${currentUser.email.split('@')[0]}-${matchId}`;
-      await sheetsAppend('Picks!A:H', [[pickId, currentUser.email, matchId, h, a, new Date().toISOString(), '', 'FALSE']]);
-    }
+    await gasRequest('savePick', { matchId, homeScore: h, awayScore: a });
 
     userPicks[matchId] = { matchId, homeScore: h, awayScore: a };
     const savedEl = document.getElementById(`saved-${matchId}`);
@@ -1458,65 +1362,33 @@ async function fetchLiveScores() {
 }
 
 async function updateMatchResultsInSheet(fixtures) {
-  // Match by API fixture ID and update scores
-  for (const f of fixtures) {
-    const match = allMatches.find(m => m.apiId == f.fixture.id);
-    if (!match || match.homeScore !== null) continue;
-    // Find row index
-    const rows = await sheetsGet('Matches!A2:S1000');
-    const rowIdx = rows.findIndex(r => r[18] == f.fixture.id);
-    if (rowIdx < 0) continue;
-    const sheetRow = rowIdx + 2;
-    const goals = f.goals;
-    await sheetsUpdate(`Matches!O${sheetRow}:R${sheetRow}`, [[
-      goals.home, goals.away, f.fixture.status.long,
-      goals.home > goals.away ? f.teams.home.name : goals.away > goals.home ? f.teams.away.name : 'Draw'
-    ]]);
-    // Update local
-    match.homeScore = goals.home;
-    match.awayScore = goals.away;
-    match.status = f.fixture.status.long;
-  }
-  await recalculateLeaderboard();
-}
+  const toUpdate = fixtures.map(f => ({
+    apiId: f.fixture.id,
+    homeScore: f.goals.home,
+    awayScore: f.goals.away,
+    status: f.fixture.status.long,
+    homeTeam: f.teams.home.name,
+    awayTeam: f.teams.away.name
+  }));
+  
+  // Update local state
+  toUpdate.forEach(u => {
+    const match = allMatches.find(m => m.apiId == u.apiId);
+    if (match) {
+      match.homeScore = u.homeScore;
+      match.awayScore = u.awayScore;
+      match.status = u.status;
+    }
+  });
 
-// ===================== LEADERBOARD RECALC =====================
-async function recalculateLeaderboard() {
   try {
-    const picksRows = await sheetsGet('Picks!A2:H10000');
-    const usersRows = await sheetsGet('Users!A2:F1000');
-    const scores = {};
-
-    usersRows.filter(r => r[0]).forEach(r => {
-      scores[r[0]] = { email: r[0], name: r[1], points: 0, exact: 0, diff: 0, winner: 0, wrong: 0 };
-    });
-
-    picksRows.filter(r => r[0]).forEach(r => {
-      const email = r[1], matchId = r[2];
-      const h = parseInt(r[3]), a = parseInt(r[4]);
-      const match = allMatches.find(m => m.id === matchId);
-      if (!match || match.homeScore === null) return;
-      if (!scores[email]) scores[email] = { email, name: formatName(email), points: 0, exact: 0, diff: 0, winner: 0, wrong: 0 };
-
-      const pts = calculatePoints({ homeScore: h, awayScore: a }, match);
-      scores[email].points += pts;
-      if (pts === 3) scores[email].exact++;
-      else if (pts === 2) scores[email].diff++;
-      else if (pts === 1) scores[email].winner++;
-      else scores[email].wrong++;
-    });
-
-    const sorted = Object.values(scores).sort((a, b) => b.points - a.points);
-    sorted.forEach((s, i) => s.rank = i + 1);
-
-    const lbData = sorted.map((s, i) => [i+1, s.email, s.name, s.points, s.exact, s.diff, s.winner, s.wrong, new Date().toISOString()]);
-    await sheetsUpdate('Leaderboard!A2:I1000', lbData);
-    leaderboardData = sorted;
-
-    // Re-render if on leaderboard page
+    await gasRequest('updateScores', { fixtures: toUpdate });
+    await loadLeaderboard();
     if (document.getElementById('page-leaderboard').classList.contains('active')) renderLeaderboard();
-  } catch(e) { console.error('Leaderboard recalc error:', e); }
+  } catch(e) { console.error('Score update error:', e); }
 }
+
+// Leaderboard recalc is handled server-side by Apps Script
 
 // ===================== MOBILE MENU =====================
 function toggleMobileMenu() {
@@ -1564,13 +1436,10 @@ async function startApp() {
   document.getElementById('userAvatar').textContent = currentUser.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('userName').textContent = currentUser.name;
 
-  // Hard timeout — show app after 10 seconds no matter what
-  const hardTimeout = setTimeout(() => showApp(), 10000);
+  // Hard timeout — show app after 12 seconds no matter what
+  const hardTimeout = setTimeout(() => showApp(), 12000);
 
   try {
-    // Token should already be set from handleCredentialResponse
-    // but ensure it just in case
-    if (!sheetsToken) await ensureSheetsToken();
     await loadMatches();
     await loadUserPicks();
     await loadLeaderboard();
