@@ -255,15 +255,37 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
 .pick-points { display: inline-block; background: rgba(0,200,83,0.15); border: 1px solid rgba(0,200,83,0.3); color: var(--green); padding: 2px 10px; border-radius: 100px; font-size: 0.8rem; font-weight: 700; margin-top: 4px; }
 
 /* ===== LEADERBOARD ===== */
+.lb-drill {
+  display: none; grid-column: 1 / -1;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+  animation: fadeIn 0.2s ease;
+}
+.lb-drill.open { display: block; }
+.drill-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 8px; }
+.drill-section { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 12px; }
+.drill-section-title { font-family: 'Barlow Condensed'; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.drill-section-title.pts3 { color: #ffd700; }
+.drill-section-title.pts2 { color: #aad4f5; }
+.drill-section-title.pts1 { color: #90ee90; }
+.drill-section-title.pts0 { color: #888; }
+.drill-section-title.pending { color: var(--text2); }
+.drill-match { font-size: 0.8rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; flex-direction: column; gap: 2px; }
+.drill-match:last-child { border-bottom: none; }
+.drill-match-teams { font-weight: 600; color: var(--text); }
+.drill-match-detail { color: var(--text2); font-size: 0.75rem; }
+.drill-empty { color: var(--text2); font-size: 0.8rem; font-style: italic; }
 .leaderboard-table { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.lb-row-wrap { border-bottom: 1px solid rgba(255,255,255,0.04); }
+.lb-row-wrap:last-child { border-bottom: none; }
 .lb-row {
   display: grid; grid-template-columns: 50px 1fr 80px 80px 80px 80px;
-  align-items: center; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  align-items: center; padding: 14px 20px;
   transition: background 0.2s;
 }
 .lb-row:hover { background: rgba(255,255,255,0.03); }
 .lb-row.header { background: rgba(245,197,24,0.08); font-family: 'Barlow Condensed'; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); border-bottom: 1px solid var(--border); }
-.lb-row:last-child { border-bottom: none; }
 .lb-row.me { background: rgba(245,197,24,0.06); }
 .lb-rank { font-family: 'Bebas Neue'; font-size: 1.4rem; }
 .lb-rank.gold { color: #ffd700; }
@@ -820,6 +842,7 @@ function handleCredentialResponse(response) {
     isAdmin: CONFIG.ADMIN_EMAILS.includes(email)
   };
   localStorage.setItem('wc_user', JSON.stringify(currentUser));
+  localStorage.setItem('wc_user_time', Date.now().toString());
   // Go straight to app - no OAuth token needed, Apps Script handles all data
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('loadingOverlay').style.display = 'flex';
@@ -838,6 +861,7 @@ function formatName(email) {
 
 function signOut() {
   localStorage.removeItem('wc_user');
+  localStorage.removeItem('wc_user_time');
   currentUser = null;
   document.getElementById('appHeader').style.display = 'none';
   document.getElementById('appMain').style.display = 'none';
@@ -850,10 +874,11 @@ function signOut() {
 
 async function gasRequest(action, data = {}) {
   const url = CONFIG.APPS_SCRIPT_URL;
+  // Use provided email or fall back to current user
+  const emailToUse = data.email || currentUser.email;
   
   if (action === 'getMatches' || action === 'getLeaderboard') {
-    // GET request for read operations
-    const resp = await fetch(`${url}?action=${action}&email=${encodeURIComponent(currentUser.email)}`, {
+    const resp = await fetch(`${url}?action=${action}&email=${encodeURIComponent(emailToUse)}`, {
       method: 'GET',
       redirect: 'follow'
     });
@@ -861,12 +886,11 @@ async function gasRequest(action, data = {}) {
     if (!result.success) throw new Error(result.error);
     return result.data;
   } else {
-    // POST request for write operations
     const resp = await fetch(url, {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action, email: currentUser.email, ...data })
+      body: JSON.stringify({ action, email: emailToUse, ...data })
     });
     const result = await resp.json();
     if (!result.success) throw new Error(result.error);
@@ -918,6 +942,26 @@ async function loadLeaderboard() {
       diff: parseInt(r.CorrectDiff) || 0, winner: parseInt(r.CorrectWinner) || 0,
       wrong: parseInt(r.WrongPicks) || 0
     }));
+    // Apply tiebreaker: Points → Exact(3pts) → Diff(2pts) → Winner(1pt)
+    leaderboardData.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.exact !== a.exact) return b.exact - a.exact;
+      if (b.diff !== a.diff) return b.diff - a.diff;
+      if (b.winner !== a.winner) return b.winner - a.winner;
+      return 0; // Tied - split prize
+    });
+    // Reassign ranks after tiebreaker sort
+    // Players with identical stats get the same rank
+    leaderboardData.forEach((p, i) => {
+      if (i === 0) { p.rank = 1; return; }
+      const prev = leaderboardData[i-1];
+      if (p.points === prev.points && p.exact === prev.exact && 
+          p.diff === prev.diff && p.winner === prev.winner) {
+        p.rank = prev.rank; // Same rank = tied
+      } else {
+        p.rank = i + 1;
+      }
+    });
   } catch(e) { console.error('Error loading leaderboard:', e); }
 }
 
@@ -1136,21 +1180,109 @@ function renderLeaderboard() {
     const rankClass = p.rank === 1 ? 'gold' : p.rank === 2 ? 'silver' : p.rank === 3 ? 'bronze' : '';
     const isMe = p.email === currentUser.email;
     const initials = p.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-    return `<div class="lb-row ${isMe?'me':''}">
-      <div class="lb-rank ${rankClass}">${p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank-1] : p.rank}</div>
-      <div class="lb-user">
-        <div class="lb-avatar">${initials}</div>
-        <div>
-          <div class="lb-name">${p.name}${isMe?'<span class="you-badge">YOU</span>':''}</div>
-          <div class="lb-email">${p.email}</div>
+    return `<div class="lb-row-wrap" id="wrap-${p.email.replace(/[@.]/g,'_')}">
+      <div class="lb-row ${isMe?'me':''}" style="cursor:pointer;" onclick="toggleDrill('${p.email.replace(/[@.]/g,'_')}', '${p.email}')">
+        <div class="lb-rank ${rankClass}">${p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank-1] : p.rank}</div>
+        <div class="lb-user">
+          <div class="lb-avatar">${initials}</div>
+          <div>
+            <div class="lb-name">${p.name}${isMe?'<span class="you-badge">YOU</span>':''} <span style="font-size:0.7rem;color:var(--text2);">▼</span></div>
+            <div class="lb-email">${p.email}</div>
+          </div>
         </div>
+        <div class="lb-pts">${p.points}</div>
+        <div class="lb-stat">🎯 ${p.exact}</div>
+        <div class="lb-stat">✅ ${p.diff}</div>
+        <div class="lb-stat">✔️ ${p.winner}</div>
       </div>
-      <div class="lb-pts">${p.points}</div>
-      <div class="lb-stat">🎯 ${p.exact}</div>
-      <div class="lb-stat">✅ ${p.diff}</div>
-      <div class="lb-stat">✔️ ${p.winner}</div>
+      <div class="lb-drill" id="drill-${p.email.replace(/[@.]/g,'_')}">
+        <div style="color:var(--text2);font-size:0.8rem;">Loading picks...</div>
+      </div>
     </div>`;
   }).join('');
+}
+
+async function toggleDrill(id, email) {
+  const drill = document.getElementById('drill-' + id);
+  const isOpen = drill.classList.contains('open');
+  
+  // Close all open drills first
+  document.querySelectorAll('.lb-drill.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.lb-row .lb-name span').forEach(s => {
+    if (s.style.fontSize === '0.7rem') s.textContent = '▼';
+  });
+
+  if (isOpen) return; // Was open, just close it
+
+  // Open this one
+  drill.classList.add('open');
+  
+  // Load picks for this user
+  try {
+    // Get all picks for this user from our data or fetch from API
+    const userPicksData = await gasRequest('getPicks', { email });
+    
+    // Categorize picks
+    const pts3 = [], pts2 = [], pts1 = [], pts0 = [], pending = [];
+    
+    userPicksData.forEach(pick => {
+      const match = allMatches.find(m => m.id === pick.MatchID);
+      if (!match) return;
+      const pts = pick.Points !== '' && pick.Points !== null && pick.Points !== undefined ? parseInt(pick.Points) : null;
+      const hasResult = match.homeScore !== null && match.homeScore !== undefined && match.homeScore !== '';
+      const isLocked = isMatchLocked(match);
+      
+      const entry = {
+        teams: match.homeTeam + ' vs ' + match.awayTeam,
+        result: hasResult ? match.homeScore + '-' + match.awayScore : '',
+        prediction: pick.HomeScorePick + '-' + pick.AwayScorePick,
+        round: match.round
+      };
+
+      if (!isLocked) return; // Not started yet, skip
+      if (!hasResult) { pending.push(entry); return; }
+      
+      if (pts === 3) pts3.push(entry);
+      else if (pts === 2) pts2.push(entry);
+      else if (pts === 1) pts1.push(entry);
+      else pts0.push(entry);
+    });
+
+    const renderEntries = (arr) => arr.length === 0 
+      ? '<div class="drill-empty">None yet</div>'
+      : arr.map(e => `<div class="drill-match">
+          <div class="drill-match-teams">${e.teams}</div>
+          <div class="drill-match-detail">Result: ${e.result} · Your pick: ${e.prediction} · ${e.round}</div>
+        </div>`).join('');
+
+    drill.innerHTML = `<div class="drill-sections">
+      ${pending.length > 0 ? `<div class="drill-section">
+        <div class="drill-section-title pending">⏳ Pending (${pending.length})</div>
+        ${pending.map(e => `<div class="drill-match">
+          <div class="drill-match-teams">${e.teams}</div>
+          <div class="drill-match-detail">Your pick: ${e.prediction} · ${e.round}</div>
+        </div>`).join('')}
+      </div>` : ''}
+      <div class="drill-section">
+        <div class="drill-section-title pts3">🎯 Exact Score — 3pts (${pts3.length})</div>
+        ${renderEntries(pts3)}
+      </div>
+      <div class="drill-section">
+        <div class="drill-section-title pts2">✅ Winner + Goal Diff — 2pts (${pts2.length})</div>
+        ${renderEntries(pts2)}
+      </div>
+      <div class="drill-section">
+        <div class="drill-section-title pts1">✔️ Correct Winner — 1pt (${pts1.length})</div>
+        ${renderEntries(pts1)}
+      </div>
+      <div class="drill-section">
+        <div class="drill-section-title pts0">❌ Wrong — 0pts (${pts0.length})</div>
+        ${renderEntries(pts0)}
+      </div>
+    </div>`;
+  } catch(e) {
+    drill.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Error loading picks: ' + e.message + '</div>';
+  }
 }
 
 function renderSchedule() {
@@ -1461,9 +1593,25 @@ function showApp() {
 
 // ===================== INIT =====================
 window.addEventListener('load', () => {
-  // Always show login first, never auto-restore session
-  // (avoids getting stuck on loading screen)
-  localStorage.removeItem('wc_user');
+  // Check for saved session (48 hour expiry)
+  const saved = localStorage.getItem('wc_user');
+  const savedTime = localStorage.getItem('wc_user_time');
+  const HOURS_48 = 48 * 60 * 60 * 1000;
+  
+  if (saved && savedTime && (Date.now() - parseInt(savedTime)) < HOURS_48) {
+    try {
+      currentUser = JSON.parse(saved);
+      document.getElementById('loadingOverlay').style.display = 'flex';
+      startApp();
+      return;
+    } catch(e) {
+      localStorage.removeItem('wc_user');
+      localStorage.removeItem('wc_user_time');
+    }
+  } else {
+    localStorage.removeItem('wc_user');
+    localStorage.removeItem('wc_user_time');
+  }
   showLoginScreen();
 });
 
