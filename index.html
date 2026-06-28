@@ -451,6 +451,47 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
   border-radius: 8px; font-size: 1rem;
 }
 
+/* ===== BRACKET ===== */
+.bracket-wrap {
+  display: flex; gap: 0; align-items: stretch;
+  min-width: 900px;
+}
+.bracket-round {
+  display: flex; flex-direction: column; justify-content: space-around;
+  flex: 1; min-width: 160px; padding: 0 6px;
+}
+.bracket-round-title {
+  font-family: 'Bebas Neue'; font-size: 0.9rem; letter-spacing: 2px;
+  color: var(--gold); text-align: center; padding: 8px 0 12px;
+  border-bottom: 1px solid var(--border); margin-bottom: 12px;
+}
+.bracket-match {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 10px; margin: 4px 0;
+  transition: all 0.2s; position: relative;
+}
+.bracket-match:hover { border-color: rgba(245,197,24,0.4); }
+.bracket-match.finished { border-color: rgba(0,200,83,0.3); }
+.bracket-match.live { border-color: rgba(244,67,54,0.5); }
+.bracket-team {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 0; font-size: 0.78rem; font-weight: 600;
+}
+.bracket-team.winner { color: var(--gold); }
+.bracket-team.loser { color: var(--text2); opacity: 0.6; }
+.bracket-team.tbd { color: var(--text2); font-style: italic; font-weight: 400; }
+.bracket-flag { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.bracket-score {
+  margin-left: auto; font-family: 'Bebas Neue'; font-size: 1rem;
+  color: var(--gold); flex-shrink: 0;
+}
+.bracket-divider { border: none; border-top: 1px solid var(--border); margin: 2px 0; }
+.bracket-info { font-size: 0.65rem; color: var(--text2); margin-top: 4px; text-align: center; }
+.bracket-connector {
+  display: flex; align-items: center; justify-content: center;
+  width: 16px; flex-shrink: 0;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   /* Header */
@@ -575,6 +616,7 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
       <button class="nav-btn" onclick="showPage('leaderboard',this)">🏆 Leaderboard</button>
       <button class="nav-btn" onclick="showPage('live',this)">🔴 Live Scores</button>
       <button class="nav-btn" onclick="showPage('schedule',this)">📅 Schedule</button>
+      <button class="nav-btn" onclick="showPage('bracket',this)">🏆 Bracket</button>
       <button class="nav-btn" onclick="showPage('groups',this)">👥 Groups</button>
       <button class="nav-btn" onclick="showPage('venues',this)">🏟️ Venues</button>
       <button class="nav-btn" onclick="showPage('rules',this)">📖 Rules</button>
@@ -597,6 +639,7 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
   <button class="nav-btn" onclick="showPage('leaderboard',this);closeMobileMenu()">🏆 Leaderboard</button>
   <button class="nav-btn" onclick="showPage('live',this);closeMobileMenu()">🔴 Live Scores</button>
   <button class="nav-btn" onclick="showPage('schedule',this);closeMobileMenu()">📅 Schedule</button>
+  <button class="nav-btn" onclick="showPage('bracket',this);closeMobileMenu()">🏆 Bracket</button>
   <button class="nav-btn" onclick="showPage('groups',this);closeMobileMenu()">👥 Groups</button>
   <button class="nav-btn" onclick="showPage('venues',this);closeMobileMenu()">🏟️ Venues</button>
   <button class="nav-btn" onclick="showPage('rules',this);closeMobileMenu()">📖 Rules</button>
@@ -700,6 +743,14 @@ main { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; paddin
     <div class="section-title">📅 Full Match Schedule</div>
     <div class="round-filter" id="scheduleRoundFilter"></div>
     <div class="cards-grid" id="scheduleGrid"><div style="color:var(--text2);padding:20px;">Loading...</div></div>
+  </div>
+
+  <!-- BRACKET PAGE -->
+  <div id="page-bracket" class="page">
+    <div class="section-title">🏆 Tournament Bracket</div>
+    <div id="bracketContainer" style="overflow-x:auto;padding-bottom:20px;">
+      <div style="color:var(--text2);padding:20px;">Loading bracket...</div>
+    </div>
   </div>
 
   <!-- GROUPS PAGE -->
@@ -1302,6 +1353,98 @@ function filterRound(page, round, btn) {
   document.getElementById(gridId).innerHTML = filtered.map(m => renderMatchCard(m, page === 'picks')).join('');
 }
 
+function renderBracket() {
+  const container = document.getElementById('bracketContainer');
+
+  // Define rounds in order
+  const ROUNDS = [
+    { key: 'Round of 32', label: 'Round of 32', short: 'R32' },
+    { key: 'Round of 16', label: 'Round of 16', short: 'R16' },
+    { key: 'Quarter-finals', label: 'Quarter Finals', short: 'QF' },
+    { key: 'Semi-finals', label: 'Semi Finals', short: 'SF' },
+    { key: 'Final', label: 'Final', short: 'F' },
+  ];
+
+  // Group matches by round
+  const roundMap = {};
+  ROUNDS.forEach(r => roundMap[r.key] = []);
+
+  allMatches.forEach(m => {
+    if (!m.round) return;
+    const round = ROUNDS.find(r => m.round.includes(r.short) || m.round.includes(r.key) || m.round === r.key);
+    if (round) roundMap[round.key].push(m);
+  });
+
+  // Also try partial matching for round names from API
+  allMatches.forEach(m => {
+    if (!m.round) return;
+    const r = m.round.toLowerCase();
+    if (r.includes('32') && !roundMap['Round of 32'].find(x => x.id === m.id)) roundMap['Round of 32'].push(m);
+    else if (r.includes('16') && !roundMap['Round of 16'].find(x => x.id === m.id)) roundMap['Round of 16'].push(m);
+    else if (r.includes('quarter') && !roundMap['Quarter-finals'].find(x => x.id === m.id)) roundMap['Quarter-finals'].push(m);
+    else if (r.includes('semi') && !roundMap['Semi-finals'].find(x => x.id === m.id)) roundMap['Semi-finals'].push(m);
+    else if (r === 'final' && !roundMap['Final'].find(x => x.id === m.id)) roundMap['Final'].push(m);
+  });
+
+  // Remove duplicates
+  ROUNDS.forEach(r => {
+    roundMap[r.key] = [...new Map(roundMap[r.key].map(m => [m.id, m])).values()];
+    roundMap[r.key].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+  });
+
+  const hasAnyKnockout = ROUNDS.some(r => roundMap[r.key].length > 0);
+  if (!hasAnyKnockout) {
+    container.innerHTML = '<div style="color:var(--text2);padding:40px;text-align:center;">Knockout stage bracket will appear here once the Round of 32 begins.</div>';
+    return;
+  }
+
+  function renderMatch(m) {
+    if (!m) return '<div class="bracket-match"><div class="bracket-team tbd">TBD</div><hr class="bracket-divider"><div class="bracket-team tbd">TBD</div></div>';
+    
+    const hasResult = m.homeScore !== null && m.homeScore !== '' && m.homeScore !== undefined;
+    const isLive = m.status && (m.status.includes('1H') || m.status.includes('2H') || m.status.includes('HT') || m.status === 'Live');
+    const homeWin = hasResult && parseInt(m.homeScore) > parseInt(m.awayScore);
+    const awayWin = hasResult && parseInt(m.awayScore) > parseInt(m.homeScore);
+    const matchClass = isLive ? 'live' : hasResult ? 'finished' : '';
+    
+    const homeName = m.homeTeam || 'TBD';
+    const awayName = m.awayTeam || 'TBD';
+    const homeClass = hasResult ? (homeWin ? 'winner' : 'loser') : '';
+    const awayClass = hasResult ? (awayWin ? 'winner' : 'loser') : '';
+    
+    const dateStr = m.dateTime ? new Date(m.dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : '';
+    const timeStr = m.dateTime ? new Date(m.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) : '';
+    
+    return \`<div class="bracket-match \${matchClass}">
+      \${isLive ? '<div style="font-size:0.6rem;color:#f44336;font-weight:700;margin-bottom:2px;">🔴 LIVE</div>' : ''}
+      <div class="bracket-team \${homeClass}">
+        \${m.homeLogo ? \`<img class="bracket-flag" src="\${m.homeLogo}" onerror="this.style.display='none'">\` : ''}
+        <span>\${homeName}</span>
+        \${hasResult ? \`<span class="bracket-score">\${m.homeScore}</span>\` : ''}
+      </div>
+      <hr class="bracket-divider">
+      <div class="bracket-team \${awayClass}">
+        \${m.awayLogo ? \`<img class="bracket-flag" src="\${m.awayLogo}" onerror="this.style.display='none'">\` : ''}
+        <span>\${awayName}</span>
+        \${hasResult ? \`<span class="bracket-score">\${m.awayScore}</span>\` : ''}
+      </div>
+      \${dateStr ? \`<div class="bracket-info">\${dateStr} \${timeStr} EST\${m.city ? ' · ' + m.city : ''}</div>\` : ''}
+    </div>\`;
+  }
+
+  // Render active rounds only
+  const activeRounds = ROUNDS.filter(r => roundMap[r.key].length > 0);
+
+  container.innerHTML = \`<div class="bracket-wrap">
+    \${activeRounds.map(r => \`
+      <div class="bracket-round">
+        <div class="bracket-round-title">\${r.label} (\${roundMap[r.key].length})</div>
+        \${roundMap[r.key].map(m => renderMatch(m)).join('')}
+      </div>
+    \`).join('')}
+  </div>\`;
+}
+
 function renderGroups() {
   const groups = {};
   allMatches.forEach(m => {
@@ -1565,6 +1708,7 @@ function showPage(page, btn) {
   else if (page === 'picks') renderPicks();
   else if (page === 'leaderboard') renderLeaderboard();
   else if (page === 'schedule') renderSchedule();
+  else if (page === 'bracket') renderBracket();
   else if (page === 'groups') renderGroups();
   else if (page === 'venues') renderVenues();
 }
