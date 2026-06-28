@@ -1356,94 +1356,113 @@ function filterRound(page, round, btn) {
 function renderBracket() {
   const container = document.getElementById('bracketContainer');
 
-  // Define rounds in order
   const ROUNDS = [
-    { key: 'Round of 32', label: 'Round of 32', short: 'R32' },
-    { key: 'Round of 16', label: 'Round of 16', short: 'R16' },
-    { key: 'Quarter-finals', label: 'Quarter Finals', short: 'QF' },
-    { key: 'Semi-finals', label: 'Semi Finals', short: 'SF' },
-    { key: 'Final', label: 'Final', short: 'F' },
+    { key: 'Round of 32', label: 'Round of 32' },
+    { key: 'Round of 16', label: 'Round of 16' },
+    { key: 'Quarter-finals', label: 'Quarter Finals' },
+    { key: 'Semi-finals', label: 'Semi Finals' },
+    { key: 'Final', label: 'Final' },
   ];
 
-  // Group matches by round
   const roundMap = {};
-  ROUNDS.forEach(r => roundMap[r.key] = []);
+  ROUNDS.forEach(r => { roundMap[r.key] = []; });
 
-  allMatches.forEach(m => {
-    if (!m.round) return;
-    const round = ROUNDS.find(r => m.round.includes(r.short) || m.round.includes(r.key) || m.round === r.key);
-    if (round) roundMap[round.key].push(m);
-  });
-
-  // Also try partial matching for round names from API
   allMatches.forEach(m => {
     if (!m.round) return;
     const r = m.round.toLowerCase();
-    if (r.includes('32') && !roundMap['Round of 32'].find(x => x.id === m.id)) roundMap['Round of 32'].push(m);
-    else if (r.includes('16') && !roundMap['Round of 16'].find(x => x.id === m.id)) roundMap['Round of 16'].push(m);
-    else if (r.includes('quarter') && !roundMap['Quarter-finals'].find(x => x.id === m.id)) roundMap['Quarter-finals'].push(m);
-    else if (r.includes('semi') && !roundMap['Semi-finals'].find(x => x.id === m.id)) roundMap['Semi-finals'].push(m);
-    else if (r === 'final' && !roundMap['Final'].find(x => x.id === m.id)) roundMap['Final'].push(m);
+    if (r.includes('32')) addUnique(roundMap['Round of 32'], m);
+    else if (r.includes('16')) addUnique(roundMap['Round of 16'], m);
+    else if (r.includes('quarter')) addUnique(roundMap['Quarter-finals'], m);
+    else if (r.includes('semi')) addUnique(roundMap['Semi-finals'], m);
+    else if (r === 'final') addUnique(roundMap['Final'], m);
   });
 
-  // Remove duplicates
+  function addUnique(arr, m) {
+    if (!arr.find(x => x.id === m.id)) arr.push(m);
+  }
+
   ROUNDS.forEach(r => {
-    roundMap[r.key] = [...new Map(roundMap[r.key].map(m => [m.id, m])).values()];
     roundMap[r.key].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
   });
 
-  const hasAnyKnockout = ROUNDS.some(r => roundMap[r.key].length > 0);
-  if (!hasAnyKnockout) {
+  // Always show all rounds, use TBD placeholders for empty ones
+  const maxMatches = { 'Round of 32': 16, 'Round of 16': 8, 'Quarter-finals': 4, 'Semi-finals': 2, 'Final': 1 };
+
+  const activeRounds = ROUNDS.filter(r => roundMap[r.key].length > 0 || r.key === 'Round of 32');
+  if (activeRounds.length === 0) {
     container.innerHTML = '<div style="color:var(--text2);padding:40px;text-align:center;">Knockout stage bracket will appear here once the Round of 32 begins.</div>';
     return;
   }
 
+  // Pad with TBD matches up to expected count
+  ROUNDS.forEach(r => {
+    const expected = maxMatches[r.key] || 0;
+    while (roundMap[r.key].length < expected) {
+      roundMap[r.key].push(null);
+    }
+  });
+
+  function formatDate(dateTime) {
+    if (!dateTime) return '';
+    try {
+      return new Date(dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+    } catch(e) { return ''; }
+  }
+
+  function formatTime(dateTime) {
+    if (!dateTime) return '';
+    try {
+      return new Date(dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' });
+    } catch(e) { return ''; }
+  }
+
   function renderMatch(m) {
-    if (!m) return '<div class="bracket-match"><div class="bracket-team tbd">TBD</div><hr class="bracket-divider"><div class="bracket-team tbd">TBD</div></div>';
-    
+    if (!m) {
+      return '<div class="bracket-match">' +
+        '<div class="bracket-team tbd">TBD</div>' +
+        '<hr class="bracket-divider">' +
+        '<div class="bracket-team tbd">TBD</div>' +
+        '</div>';
+    }
     const hasResult = m.homeScore !== null && m.homeScore !== '' && m.homeScore !== undefined;
     const isLive = m.status && (m.status.includes('1H') || m.status.includes('2H') || m.status.includes('HT') || m.status === 'Live');
     const homeWin = hasResult && parseInt(m.homeScore) > parseInt(m.awayScore);
     const awayWin = hasResult && parseInt(m.awayScore) > parseInt(m.homeScore);
     const matchClass = isLive ? 'live' : hasResult ? 'finished' : '';
-    
-    const homeName = m.homeTeam || 'TBD';
-    const awayName = m.awayTeam || 'TBD';
     const homeClass = hasResult ? (homeWin ? 'winner' : 'loser') : '';
     const awayClass = hasResult ? (awayWin ? 'winner' : 'loser') : '';
-    
-    const dateStr = m.dateTime ? new Date(m.dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : '';
-    const timeStr = m.dateTime ? new Date(m.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }) : '';
-    
-    return \`<div class="bracket-match \${matchClass}">
-      \${isLive ? '<div style="font-size:0.6rem;color:#f44336;font-weight:700;margin-bottom:2px;">🔴 LIVE</div>' : ''}
-      <div class="bracket-team \${homeClass}">
-        \${m.homeLogo ? \`<img class="bracket-flag" src="\${m.homeLogo}" onerror="this.style.display='none'">\` : ''}
-        <span>\${homeName}</span>
-        \${hasResult ? \`<span class="bracket-score">\${m.homeScore}</span>\` : ''}
-      </div>
-      <hr class="bracket-divider">
-      <div class="bracket-team \${awayClass}">
-        \${m.awayLogo ? \`<img class="bracket-flag" src="\${m.awayLogo}" onerror="this.style.display='none'">\` : ''}
-        <span>\${awayName}</span>
-        \${hasResult ? \`<span class="bracket-score">\${m.awayScore}</span>\` : ''}
-      </div>
-      \${dateStr ? \`<div class="bracket-info">\${dateStr} \${timeStr} EST\${m.city ? ' · ' + m.city : ''}</div>\` : ''}
-    </div>\`;
+    const dateStr = formatDate(m.dateTime);
+    const timeStr = formatTime(m.dateTime);
+
+    let html = '<div class="bracket-match ' + matchClass + '">';
+    if (isLive) html += '<div style="font-size:0.6rem;color:#f44336;font-weight:700;margin-bottom:2px;">🔴 LIVE</div>';
+    html += '<div class="bracket-team ' + homeClass + '">';
+    if (m.homeLogo) html += '<img class="bracket-flag" src="' + m.homeLogo + '" onerror="this.style.display='none'">';
+    html += '<span>' + (m.homeTeam || 'TBD') + '</span>';
+    if (hasResult) html += '<span class="bracket-score">' + m.homeScore + '</span>';
+    html += '</div><hr class="bracket-divider">';
+    html += '<div class="bracket-team ' + awayClass + '">';
+    if (m.awayLogo) html += '<img class="bracket-flag" src="' + m.awayLogo + '" onerror="this.style.display='none'">';
+    html += '<span>' + (m.awayTeam || 'TBD') + '</span>';
+    if (hasResult) html += '<span class="bracket-score">' + m.awayScore + '</span>';
+    html += '</div>';
+    if (dateStr) html += '<div class="bracket-info">' + dateStr + ' ' + timeStr + ' EST' + (m.city ? ' · ' + m.city : '') + '</div>';
+    html += '</div>';
+    return html;
   }
 
-  // Render active rounds only
-  const activeRounds = ROUNDS.filter(r => roundMap[r.key].length > 0);
-
-  container.innerHTML = \`<div class="bracket-wrap">
-    \${activeRounds.map(r => \`
-      <div class="bracket-round">
-        <div class="bracket-round-title">\${r.label} (\${roundMap[r.key].length})</div>
-        \${roundMap[r.key].map(m => renderMatch(m)).join('')}
-      </div>
-    \`).join('')}
-  </div>\`;
+  let html = '<div class="bracket-wrap">';
+  activeRounds.forEach(r => {
+    const matches = roundMap[r.key];
+    html += '<div class="bracket-round">';
+    html += '<div class="bracket-round-title">' + r.label + ' (' + matches.filter(m => m !== null).length + ')</div>';
+    matches.forEach(m => { html += renderMatch(m); });
+    html += '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
 }
+
 
 function renderGroups() {
   const groups = {};
