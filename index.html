@@ -1437,12 +1437,12 @@ function renderBracket() {
     let html = '<div class="bracket-match ' + matchClass + '">';
     if (isLive) html += '<div style="font-size:0.6rem;color:#f44336;font-weight:700;margin-bottom:2px;">🔴 LIVE</div>';
     html += '<div class="bracket-team ' + homeClass + '">';
-    if (m.homeLogo) html += '<img class="bracket-flag" src="' + m.homeLogo + '" onerror="this.style.display='none'">';
+    if (m.homeLogo) html += '<img class="bracket-flag" src="' + m.homeLogo + '" onerror="this.hidden=true">';
     html += '<span>' + (m.homeTeam || 'TBD') + '</span>';
     if (hasResult) html += '<span class="bracket-score">' + m.homeScore + '</span>';
     html += '</div><hr class="bracket-divider">';
     html += '<div class="bracket-team ' + awayClass + '">';
-    if (m.awayLogo) html += '<img class="bracket-flag" src="' + m.awayLogo + '" onerror="this.style.display='none'">';
+    if (m.awayLogo) html += '<img class="bracket-flag" src="' + m.awayLogo + '" onerror="this.hidden=true">';
     html += '<span>' + (m.awayTeam || 'TBD') + '</span>';
     if (hasResult) html += '<span class="bracket-score">' + m.awayScore + '</span>';
     html += '</div>';
