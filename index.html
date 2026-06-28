@@ -1431,7 +1431,6 @@ async function fetchLiveScores() {
   btn.textContent = '⏳ Fetching...';
 
   try {
-    // Fetch live + recent finished matches
     const [liveResp, recentResp] = await Promise.all([
       fetch(`https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=1H-HT-2H-ET-P-BT`, {
         headers: { 'x-apisports-key': CONFIG.API_FOOTBALL_KEY }
@@ -1445,15 +1444,14 @@ async function fetchLiveScores() {
     const recentData = await recentResp.json();
 
     const liveFixtures = liveData.response || [];
-    const finishedFixtures = (recentData.response || []).slice(-20); // last 20 finished
-
+    const finishedFixtures = (recentData.response || []).slice(-20);
     const allFixtures = [...liveFixtures, ...finishedFixtures];
 
     if (allFixtures.length === 0) {
       document.getElementById('liveScoresGrid').innerHTML = `
         <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text2);">
           <div style="font-size:3rem;margin-bottom:12px;">😴</div>
-          No live or recent matches at this time.<br>Check back when the tournament is underway!
+          No live or recent matches at this time.
         </div>`;
     } else {
       document.getElementById('liveScoresGrid').innerHTML = allFixtures.map(f => {
@@ -1461,8 +1459,6 @@ async function fetchLiveScores() {
         const fixture = f.fixture;
         const teams = f.teams;
         const goals = f.goals;
-
-        // Map to our match format for rendering
         const matchObj = {
           id: 'live-' + fixture.id,
           round: f.league.round,
@@ -1474,19 +1470,38 @@ async function fetchLiveScores() {
           venue: fixture.venue?.name || '', city: fixture.venue?.city || '',
           apiId: fixture.id
         };
-
         return renderMatchCard(matchObj, false);
       }).join('');
     }
 
-    // Update scores in our Matches sheet for finished games
+    // Update scores, sync new matches, recalculate leaderboard
     if (finishedFixtures.length > 0) {
+      showToast('Updating scores & syncing new matches...', 'success');
       await updateMatchResultsInSheet(finishedFixtures);
+    } else {
+      // Even with no finished games, sync new matches from API
+      await gasRequest('updateScores', { fixtures: [] });
+    }
+
+    // Reload allMatches to pick up any newly synced matches
+    await loadMatches();
+    await loadLeaderboard();
+
+    // Refresh current page view
+    const activePage = document.querySelector('.page.active');
+    if (activePage) {
+      const pageId = activePage.id.replace('page-', '');
+      if (pageId === 'home') renderHome();
+      else if (pageId === 'schedule') renderSchedule();
+      else if (pageId === 'picks') renderPicks();
+      else if (pageId === 'leaderboard') renderLeaderboard();
     }
 
     document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+    showToast('✅ Scores & matches updated!', 'success');
   } catch(e) {
     showToast('Error fetching scores: ' + e.message, 'error');
+    console.error(e);
   } finally {
     btn.classList.remove('loading');
     btn.innerHTML = '🔄 Refresh Scores';
