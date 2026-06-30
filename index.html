@@ -1085,7 +1085,7 @@ function renderMatchCard(match, showPick = false) {
   }
 
   const scoreOrVs = hasResult
-    ? `<div class="score-display">${match.homeScore}–${match.awayScore}</div>`
+    ? `<div class="score-display">${match.homeScore}–${match.awayScore}${match.wentToPenalties ? ' <span style="font-size:0.6em;color:var(--text2);">(pen.)</span>' : ''}</div>`
     : locked ? `<div class="vs">VS</div>` : `<div class="vs">VS</div>`;
 
   let pickHtml = '';
@@ -1621,16 +1621,28 @@ async function fetchLiveScores() {
         const fixture = f.fixture;
         const teams = f.teams;
         const goals = f.goals;
+
+        // Sum penalty shootout score into final score if applicable
+        const wentToPenalties = f.score && f.score.penalty &&
+          (f.score.penalty.home !== null && f.score.penalty.away !== null);
+        let displayHomeScore = goals.home;
+        let displayAwayScore = goals.away;
+        if (wentToPenalties) {
+          displayHomeScore = goals.home + f.score.penalty.home;
+          displayAwayScore = goals.away + f.score.penalty.away;
+        }
+
         const matchObj = {
           id: 'live-' + fixture.id,
           round: f.league.round,
           homeTeam: teams.home.name, awayTeam: teams.away.name,
           homeLogo: teams.home.logo, awayLogo: teams.away.logo,
-          homeScore: goals.home, awayScore: goals.away,
+          homeScore: displayHomeScore, awayScore: displayAwayScore,
           status: isLive ? 'Live' : 'FT',
           dateTime: fixture.date,
           venue: fixture.venue?.name || '', city: fixture.venue?.city || '',
-          apiId: fixture.id
+          apiId: fixture.id,
+          wentToPenalties: wentToPenalties
         };
         return renderMatchCard(matchObj, false);
       }).join('');
