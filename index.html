@@ -1671,14 +1671,31 @@ async function fetchLiveScores() {
 }
 
 async function updateMatchResultsInSheet(fixtures) {
-  const toUpdate = fixtures.map(f => ({
-    apiId: f.fixture.id,
-    homeScore: f.goals.home,
-    awayScore: f.goals.away,
-    status: f.fixture.status.long,
-    homeTeam: f.teams.home.name,
-    awayTeam: f.teams.away.name
-  }));
+  const toUpdate = fixtures.map(f => {
+    const regulationHome = f.goals.home;
+    const regulationAway = f.goals.away;
+
+    const wentToPenalties = f.score && f.score.penalty &&
+      (f.score.penalty.home !== null && f.score.penalty.away !== null);
+
+    let homeScore = regulationHome;
+    let awayScore = regulationAway;
+
+    if (wentToPenalties) {
+      homeScore = regulationHome + f.score.penalty.home;
+      awayScore = regulationAway + f.score.penalty.away;
+    }
+
+    return {
+      apiId: f.fixture.id,
+      homeScore: homeScore,
+      awayScore: awayScore,
+      wentToPenalties: wentToPenalties,
+      status: f.fixture.status.long,
+      homeTeam: f.teams.home.name,
+      awayTeam: f.teams.away.name
+    };
+  });
   
   // Update local state
   toUpdate.forEach(u => {
@@ -1687,6 +1704,7 @@ async function updateMatchResultsInSheet(fixtures) {
       match.homeScore = u.homeScore;
       match.awayScore = u.awayScore;
       match.status = u.status;
+      match.wentToPenalties = u.wentToPenalties;
     }
   });
 
