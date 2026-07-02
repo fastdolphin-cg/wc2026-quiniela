@@ -965,6 +965,8 @@ async function loadMatches() {
       status: r.Status || 'Not Started',
       winner: r.Winner, apiId: r.APIFixtureID
     }));
+    // Sort chronologically
+    allMatches.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
   } catch(e) { console.error('Error loading matches:', e); }
 }
 
@@ -1772,11 +1774,9 @@ function showToast(msg, type='success') {
 
 // ===================== START APP =====================
 async function startApp() {
-  // Update header UI
   document.getElementById('userAvatar').textContent = currentUser.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('userName').textContent = currentUser.name;
 
-  // Hard timeout — show app after 12 seconds no matter what
   const hardTimeout = setTimeout(() => showApp(), 12000);
 
   try {
@@ -1790,6 +1790,19 @@ async function startApp() {
 
   clearTimeout(hardTimeout);
   showApp();
+
+  // Background sync — runs after app is visible, no blocking
+  setTimeout(async () => {
+    try {
+      await gasRequest('updateScores', { fixtures: [] });
+      await loadMatches();
+      await loadLeaderboard();
+      renderHome();
+      if (document.getElementById('page-schedule').classList.contains('active')) renderSchedule();
+      if (document.getElementById('page-picks').classList.contains('active')) renderPicks();
+      if (document.getElementById('page-leaderboard').classList.contains('active')) renderLeaderboard();
+    } catch(e) { console.error('Background sync error:', e); }
+  }, 1500);
 }
 
 function showApp() {
