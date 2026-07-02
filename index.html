@@ -958,15 +958,21 @@ async function loadMatches() {
       homeTeam: r.HomeTeam, awayTeam: r.AwayTeam,
       homeTeamId: r.HomeTeamID, awayTeamId: r.AwayTeamID,
       homeLogo: r.HomeLogo, awayLogo: r.AwayLogo,
-      date: r.MatchDate, dateTime: r.MatchTime_UTC,
+      date: r.MatchDate, dateTime: r.MatchTime_UTC || r.MatchDate,
       venue: r.Venue, city: r.City, country: r.Country,
       homeScore: r.HomeScore !== '' && r.HomeScore !== null ? parseInt(r.HomeScore) : null,
       awayScore: r.AwayScore !== '' && r.AwayScore !== null ? parseInt(r.AwayScore) : null,
       status: r.Status || 'Not Started',
       winner: r.Winner, apiId: r.APIFixtureID
     }));
-    // Sort chronologically
-    allMatches.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+    // Sort chronologically - handle both string and Date object formats
+    allMatches.sort((a, b) => {
+      const da = a.dateTime ? new Date(a.dateTime).getTime() : 0;
+      const db = b.dateTime ? new Date(b.dateTime).getTime() : 0;
+      if (isNaN(da) || da === 0) return 1;
+      if (isNaN(db) || db === 0) return -1;
+      return da - db;
+    });
   } catch(e) { console.error('Error loading matches:', e); }
 }
 
